@@ -37,7 +37,31 @@ class BookController extends Controller
      */
     public function store(Request $request)
     {
-        // TODO: Validación + creación en Guía 7
+        //dd($request);
+        // 1. Validar
+        $validated = $request->validate([
+            'title'             => 'required|string|max:255',
+            'isbn'              => 'required|string|size:13|unique:books,isbn',
+            'publisher'         => 'nullable|string|max:200',
+            'publish_year'      => 'nullable|integer|min:1000|max:'.date('Y'),
+            'pages'             => 'nullable|integer|min:1',
+            'language'          => 'nullable|string|max:30',
+            'description'       => 'nullable|string',
+            'cover_url'         => 'nullable|url|max:500',
+            'total_copies'      => 'required|integer|min:1',
+            'category_id'       => 'required|exists:categories,id',
+            'authors'           => 'required|array|min:1',
+            'authors.*'         => 'integer|exists:authors,id',
+        ]); 
+        // 2. Determinar copias disponibles
+            $validated['available_copies'] = $validated['total_copies'];
+        // 3. Crear libro
+            $book = Book::create($validated);
+        // 4. Asociar autores
+            $book->authors()->sync($request->input('authors', []));
+        // 5. Mostrar mensaje flash
+            session()->flash('succes', 'Libro registrado exitosamente.');
+            return redirect()->route('books.show', $book);
     }
 
     /**
@@ -55,7 +79,9 @@ class BookController extends Controller
      */
     public function edit(Book $book)
     {
-        // TODO: Formulario de edición en Guía 7
+        $categories = Category::orderBy('name')->get();
+        $authors = Author::orderBy('last_name')->get();
+        return view('books.edit', compact('book', 'categories', 'authors'));
     }
 
     /**
@@ -63,7 +89,32 @@ class BookController extends Controller
      */
     public function update(Request $request, Book $book)
     {
-        // TODO: Validación + actualización en Guía 7
+        //dd($request);
+        // 1. Validar
+        $validated = $request->validate([
+            'title'             => 'required|string|max:255',
+            'publisher'         => 'nullable|string|max:200',
+            'publish_year'      => 'nullable|integer|min:1000|max:'.date('Y'),
+            'pages'             => 'nullable|integer|min:1',
+            'language'          => 'nullable|string|max:30',
+            'description'       => 'nullable|string',
+            'cover_url'         => 'nullable|url|max:500',
+            'total_copies'      => 'required|integer|min:1',
+            'category_id'       => 'required|exists:categories,id',
+            'authors'           => 'required|array|min:1',
+            'authors.*'         => 'integer|exists:authors,id',
+        ]); 
+        // 2. Determinar copias disponibles
+            $loanedCopies = $book->total_copies - $book->available_copies;
+            $newTotal = $validated['total_copies'];
+            $validated['available_copies'] = max(0, $newTotal - $loanedCopies);
+        // 3. Actualizar libro
+            $book->update($validated);
+        // 4. Sincronizar autores
+            $book->authors()->sync($request->input('authors', []));
+        // 5. Mostrar mensaje flash
+            session()->flash('succes', 'Libro actualizado exitosamente.');
+            return redirect()->route('books.show', $book);
     }
 
     /**
